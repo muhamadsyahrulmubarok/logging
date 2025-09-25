@@ -506,10 +506,15 @@ class LogMonitor:
         for root, dirs, files in os.walk(directory):
             for file in files:
                 file_path = os.path.join(root, file)
-                if self.processor.LogFileHandler(None, None)._is_log_file(file_path):
+                if self._is_log_file(file_path):
                     self.file_queue.put(file_path)
         
         logging.info(f"Queued {self.file_queue.qsize()} files for processing")
+    
+    def _is_log_file(self, file_path: str) -> bool:
+        """Check if file is a log file we should process"""
+        filename = os.path.basename(file_path)
+        return (filename.endswith('.log') or filename.endswith('.log.gz')) and '__' in filename
     
     def start_monitoring(self):
         """Start the log monitoring service"""
