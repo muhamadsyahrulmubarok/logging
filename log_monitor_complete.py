@@ -22,6 +22,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
 import queue
+from dotenv import load_dotenv
 
 # Flask imports
 from flask import Flask, render_template, request, jsonify, redirect, url_for
@@ -616,26 +617,29 @@ class LogMonitor:
         self._setup_logging()
     
     def _load_config(self, config_path: str) -> Dict:
-        """Load configuration from JSON file"""
+        """Load configuration from JSON file and environment variables"""
+        # Load environment variables from .env file
+        load_dotenv()
+        
         default_config = {
             "database": {
-                "host": "localhost",
-                "database": "log_monitor",
-                "user": "log_user",
-                "password": "log_password",
-                "port": 3306
+                "host": os.getenv("DB_HOST", "localhost"),
+                "database": os.getenv("DB_NAME", "log_monitor"),
+                "user": os.getenv("DB_USER", "log_user"),
+                "password": os.getenv("DB_PASSWORD", "log_password"),
+                "port": int(os.getenv("DB_PORT", "3306"))
             },
             "monitoring": {
-                "watch_directory": "./logs",
-                "max_file_size_mb": 10,
-                "cleanup_days": 90,
-                "cleanup_interval_hours": 24
+                "watch_directory": os.getenv("WATCH_DIRECTORY", "./logs"),
+                "max_file_size_mb": int(os.getenv("MAX_FILE_SIZE_MB", "10")),
+                "cleanup_days": int(os.getenv("CLEANUP_DAYS", "90")),
+                "cleanup_interval_hours": int(os.getenv("CLEANUP_INTERVAL_HOURS", "24"))
             },
             "logging": {
-                "level": "INFO",
-                "file": "log_monitor.log",
-                "max_bytes": 10485760,
-                "backup_count": 5
+                "level": os.getenv("LOG_LEVEL", "INFO"),
+                "file": os.getenv("LOG_FILE", "log_monitor.log"),
+                "max_bytes": int(os.getenv("LOG_MAX_BYTES", "10485760")),
+                "backup_count": int(os.getenv("LOG_BACKUP_COUNT", "5"))
             }
         }
         
@@ -644,7 +648,7 @@ class LogMonitor:
                 with open(config_path, 'r') as f:
                     user_config = json.load(f)
                     
-                # Merge configs
+                # Merge configs (JSON config overrides environment variables)
                 for key, value in user_config.items():
                     if isinstance(value, dict) and key in default_config:
                         default_config[key].update(value)
@@ -702,10 +706,15 @@ class LogMonitor:
         for root, dirs, files in os.walk(directory):
             for file in files:
                 file_path = os.path.join(root, file)
-                if LogFileHandler(None, None)._is_log_file(file_path):
+                if self._is_log_file(file_path):
                     self.file_queue.put(file_path)
         
         logging.info(f"Queued {self.file_queue.qsize()} files for processing")
+    
+    def _is_log_file(self, file_path: str) -> bool:
+        """Check if file is a log file we should process"""
+        filename = os.path.basename(file_path)
+        return (filename.endswith('.log') or filename.endswith('.log.gz')) and '__' in filename
     
     def start_monitoring(self):
         """Start the log monitoring service"""
@@ -793,20 +802,23 @@ log_monitor = None
 db_manager = None
 
 def load_config():
-    """Load configuration from config.json or use defaults"""
+    """Load configuration from config.json and environment variables"""
+    # Load environment variables from .env file
+    load_dotenv()
+    
     default_config = {
         "database": {
-            "host": "localhost",
-            "database": "log_monitor",
-            "user": "root",
-            "password": "root",
-            "port": 3306
+            "host": os.getenv("DB_HOST", "localhost"),
+            "database": os.getenv("DB_NAME", "log_monitor"),
+            "user": os.getenv("DB_USER", "root"),
+            "password": os.getenv("DB_PASSWORD", "root"),
+            "port": int(os.getenv("DB_PORT", "3306"))
         },
         "web": {
-            "host": "0.0.0.0",
-            "port": 5000,
-            "debug": True,
-            "auto_reload": True
+            "host": os.getenv("WEB_HOST", "0.0.0.0"),
+            "port": int(os.getenv("WEB_PORT", "5000")),
+            "debug": os.getenv("WEB_DEBUG", "True").lower() == "true",
+            "auto_reload": os.getenv("WEB_AUTO_RELOAD", "True").lower() == "true"
         }
     }
     
@@ -955,7 +967,38 @@ def api_logs():
 # ============================================================================
 
 def create_sample_config():
-    """Create a sample configuration file"""
+    """Create sample configuration files"""
+    # Create .env file
+    env_content = """# Database Configuration
+DB_HOST=localhost
+DB_NAME=log_monitor
+DB_USER=root
+DB_PASSWORD=root
+DB_PORT=3306
+
+# Monitoring Configuration
+WATCH_DIRECTORY=./logs
+MAX_FILE_SIZE_MB=10
+CLEANUP_DAYS=90
+CLEANUP_INTERVAL_HOURS=24
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=./logs/log_monitor.log
+LOG_MAX_BYTES=10485760
+LOG_BACKUP_COUNT=5
+
+# Web Server Configuration
+WEB_HOST=0.0.0.0
+WEB_PORT=5000
+WEB_DEBUG=True
+WEB_AUTO_RELOAD=True
+"""
+    
+    with open('.env', 'w') as f:
+        f.write(env_content)
+    
+    # Create config.json file
     config = {
         "database": {
             "host": "localhost",
@@ -987,7 +1030,9 @@ def create_sample_config():
     with open('config.json', 'w') as f:
         json.dump(config, f, indent=4)
     
-    print("Sample config.json created. Please update with your database credentials.")
+    print("Sample .env and config.json created.")
+    print("Please update .env with your database credentials.")
+    print("The .env file takes priority over config.json for database settings.")
 
 # ============================================================================
 # MAIN APPLICATION
