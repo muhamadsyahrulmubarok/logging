@@ -1,0 +1,296 @@
+{% extends "base.html" %} {% block title %}Dashboard - Log Monitor{% endblock %}
+{% block content %}
+<div class="row">
+	<div class="col-12">
+		<h1 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h1>
+	</div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+	<div class="col-md-3">
+		<div class="card bg-primary text-white">
+			<div class="card-body">
+				<div class="d-flex justify-content-between">
+					<div>
+						<h4 class="card-title">{{ stats.total_logs or 0 }}</h4>
+						<p class="card-text">Total Logs (7 days)</p>
+					</div>
+					<div class="align-self-center">
+						<i class="fas fa-file-alt fa-2x"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-3">
+		<div class="card bg-success text-white">
+			<div class="card-body">
+				<div class="d-flex justify-content-between">
+					<div>
+						<h4 class="card-title">{{ apps|length }}</h4>
+						<p class="card-text">Monitored Apps</p>
+					</div>
+					<div class="align-self-center">
+						<i class="fas fa-server fa-2x"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-3">
+		<div class="card bg-warning text-white">
+			<div class="card-body">
+				<div class="d-flex justify-content-between">
+					<div>
+						<h4 class="card-title">{{ stats.logs_by_type.get('error', 0) }}</h4>
+						<p class="card-text">Error Logs</p>
+					</div>
+					<div class="align-self-center">
+						<i class="fas fa-exclamation-triangle fa-2x"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-3">
+		<div class="card bg-info text-white">
+			<div class="card-body">
+				<div class="d-flex justify-content-between">
+					<div>
+						<h4 class="card-title">{{ recent_logs|length }}</h4>
+						<p class="card-text">Recent Entries</p>
+					</div>
+					<div class="align-self-center">
+						<i class="fas fa-clock fa-2x"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+	<div class="col-md-6">
+		<div class="card">
+			<div class="card-header">
+				<h5 class="card-title mb-0">
+					<i class="fas fa-chart-pie me-2"></i>Logs by Type
+				</h5>
+			</div>
+			<div class="card-body">
+				<canvas id="logsByTypeChart" height="300"></canvas>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-6">
+		<div class="card">
+			<div class="card-header">
+				<h5 class="card-title mb-0">
+					<i class="fas fa-chart-bar me-2"></i>Top Applications
+				</h5>
+			</div>
+			<div class="card-body">
+				<canvas id="topAppsChart" height="300"></canvas>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Applications Status -->
+<div class="row mb-4">
+	<div class="col-12">
+		<div class="card">
+			<div class="card-header">
+				<h5 class="card-title mb-0">
+					<i class="fas fa-server me-2"></i>Monitored Applications
+				</h5>
+			</div>
+			<div class="card-body">
+				{% if apps %}
+				<div class="table-responsive">
+					<table class="table table-hover">
+						<thead>
+							<tr>
+								<th>Application</th>
+								<th>Status</th>
+								<th>Last Log</th>
+								<th>Total Logs</th>
+								<th>Created</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for app in apps %}
+							<tr>
+								<td>
+									<strong>{{ app.app_name }}</strong>
+								</td>
+								<td>
+									<span
+										class="badge bg-{{ 'success' if app.status == 'active' else 'secondary' }}"
+									>
+										{{ app.status }}
+									</span>
+								</td>
+								<td>
+									{% if app.last_log_timestamp %} {{
+									app.last_log_timestamp.strftime('%Y-%m-%d %H:%M:%S') }} {%
+									else %}
+									<span class="text-muted">Never</span>
+									{% endif %}
+								</td>
+								<td>
+									<span class="badge bg-primary">{{ app.total_logs }}</span>
+								</td>
+								<td>{{ app.created_at.strftime('%Y-%m-%d') }}</td>
+								<td>
+									<a
+										href="{{ url_for('logs', app_name=app.app_name) }}"
+										class="btn btn-sm btn-outline-primary"
+									>
+										<i class="fas fa-eye"></i> View Logs
+									</a>
+								</td>
+							</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+				{% else %}
+				<div class="text-center py-4">
+					<i class="fas fa-server fa-3x text-muted mb-3"></i>
+					<p class="text-muted">No applications being monitored yet.</p>
+				</div>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Recent Logs -->
+<div class="row">
+	<div class="col-12">
+		<div class="card">
+			<div class="card-header">
+				<h5 class="card-title mb-0">
+					<i class="fas fa-file-alt me-2"></i>Recent Log Entries
+				</h5>
+			</div>
+			<div class="card-body">
+				{% if recent_logs %}
+				<div class="table-responsive">
+					<table class="table table-hover">
+						<thead>
+							<tr>
+								<th>App</th>
+								<th>Type</th>
+								<th>Timestamp</th>
+								<th>File</th>
+								<th>Size</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for log in recent_logs %}
+							<tr>
+								<td>
+									<span class="badge bg-secondary">{{ log.app_name }}</span>
+								</td>
+								<td>
+									<span
+										class="badge bg-{{ 'danger' if log.log_type == 'error' else 'info' if log.log_type == 'info' else 'warning' if log.log_type == 'warn' else 'success' }}"
+									>
+										{{ log.log_type }}
+									</span>
+								</td>
+								<td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+								<td>
+									<code class="small">{{ log.file_name }}</code>
+								</td>
+								<td>{{ "%.1f"|format(log.file_size / 1024) }} KB</td>
+								<td>
+									<a
+										href="{{ url_for('log_detail', log_id=log.id) }}"
+										class="btn btn-sm btn-outline-primary"
+									>
+										<i class="fas fa-eye"></i> View
+									</a>
+								</td>
+							</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+				<div class="text-center mt-3">
+					<a href="{{ url_for('logs') }}" class="btn btn-primary">
+						<i class="fas fa-list me-1"></i>View All Logs
+					</a>
+				</div>
+				{% else %}
+				<div class="text-center py-4">
+					<i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+					<p class="text-muted">No log entries found.</p>
+				</div>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+	// Logs by Type Chart
+	const logsByTypeCtx = document.getElementById('logsByTypeChart').getContext('2d');
+	const logsByTypeData = {{ stats.logs_by_type | tojson }};
+	new Chart(logsByTypeCtx, {
+	    type: 'doughnut',
+	    data: {
+	        labels: Object.keys(logsByTypeData),
+	        datasets: [{
+	            data: Object.values(logsByTypeData),
+	            backgroundColor: [
+	                '#dc3545', // error - red
+	                '#28a745', // info - green
+	                '#ffc107', // warn - yellow
+	                '#17a2b8', // debug - blue
+	                '#6c757d'  // other - gray
+	            ]
+	        }]
+	    },
+	    options: {
+	        responsive: true,
+	        maintainAspectRatio: false,
+	        plugins: {
+	            legend: {
+	                position: 'bottom'
+	            }
+	        }
+	    }
+	});
+
+	// Top Apps Chart
+	const topAppsCtx = document.getElementById('topAppsChart').getContext('2d');
+	const topAppsData = {{ stats.logs_by_app | tojson }};
+	new Chart(topAppsCtx, {
+	    type: 'bar',
+	    data: {
+	        labels: Object.keys(topAppsData),
+	        datasets: [{
+	            label: 'Log Count',
+	            data: Object.values(topAppsData),
+	            backgroundColor: '#007bff'
+	        }]
+	    },
+	    options: {
+	        responsive: true,
+	        maintainAspectRatio: false,
+	        scales: {
+	            y: {
+	                beginAtZero: true
+	            }
+	        }
+	    }
+	});
+</script>
+{% endblock %}

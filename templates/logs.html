@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Logs - Log Monitor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-file-alt me-2"></i>Log Entries
+        </h1>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-filter me-2"></i>Filters
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="app_name" class="form-label">Application</label>
+                        <select class="form-select" id="app_name" name="app_name">
+                            <option value="">All Applications</option>
+                            {% for app in apps %}
+                            <option value="{{ app.app_name }}" 
+                                    {% if app.app_name == current_app %}selected{% endif %}>
+                                {{ app.app_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="log_type" class="form-label">Log Type</label>
+                        <select class="form-select" id="log_type" name="log_type">
+                            <option value="">All Types</option>
+                            <option value="error" {% if current_type == 'error' %}selected{% endif %}>Error</option>
+                            <option value="info" {% if current_type == 'info' %}selected{% endif %}>Info</option>
+                            <option value="warn" {% if current_type == 'warn' %}selected{% endif %}>Warning</option>
+                            <option value="debug" {% if current_type == 'debug' %}selected{% endif %}>Debug</option>
+                            <option value="out" {% if current_type == 'out' %}selected{% endif %}>Output</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="search" class="form-label">Search</label>
+                        <input type="text" class="form-control" id="search" name="search" 
+                               placeholder="Search in content or filename..." 
+                               value="{{ current_search or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1"></i>Filter
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Logs Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-list me-2"></i>Log Entries
+                    <span class="badge bg-primary ms-2">{{ logs|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if logs %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Application</th>
+                                <th>Type</th>
+                                <th>Timestamp</th>
+                                <th>File Name</th>
+                                <th>Size</th>
+                                <th>Processed</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-secondary">#{{ log.id }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ log.app_name }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'danger' if log.log_type == 'error' else 'success' if log.log_type == 'info' else 'warning' if log.log_type == 'warn' else 'primary' if log.log_type == 'debug' else 'secondary' }}">
+                                        {{ log.log_type }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="text-muted">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                                </td>
+                                <td>
+                                    <code class="small">{{ log.file_name }}</code>
+                                </td>
+                                <td>
+                                    <span class="text-muted">{{ "%.1f"|format(log.file_size / 1024) }} KB</span>
+                                </td>
+                                <td>
+                                    <span class="text-muted">{{ log.processed_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('log_detail', log_id=log.id) }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No log entries found</h5>
+                    <p class="text-muted">
+                        {% if current_app or current_type or current_search %}
+                            Try adjusting your filters to see more results.
+                        {% else %}
+                            No log entries have been processed yet.
+                        {% endif %}
+                    </p>
+                    {% if current_app or current_type or current_search %}
+                    <a href="{{ url_for('logs') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-times me-1"></i>Clear Filters
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

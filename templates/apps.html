@@ -1,0 +1,307 @@
+{% extends "base.html" %} {% block title %}Applications - Log Monitor{% endblock
+%} {% block content %}
+<div class="row">
+	<div class="col-12">
+		<h1 class="mb-4">
+			<i class="fas fa-server me-2"></i>Monitored Applications
+		</h1>
+	</div>
+</div>
+
+<!-- Applications Overview -->
+<div class="row">
+	<div class="col-12">
+		<div class="card">
+			<div class="card-header">
+				<h5 class="card-title mb-0">
+					<i class="fas fa-list me-2"></i>Applications Status
+					<span class="badge bg-primary ms-2">{{ apps|length }}</span>
+				</h5>
+			</div>
+			<div class="card-body">
+				{% if apps %}
+				<div class="table-responsive">
+					<table class="table table-hover">
+						<thead>
+							<tr>
+								<th>Application</th>
+								<th>Status</th>
+								<th>Last Log Entry</th>
+								<th>Total Logs</th>
+								<th>Created</th>
+								<th>Updated</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for app in apps %}
+							<tr>
+								<td>
+									<div class="d-flex align-items-center">
+										<i class="fas fa-server me-2 text-muted"></i>
+										<strong>{{ app.app_name }}</strong>
+									</div>
+								</td>
+								<td>
+									<span
+										class="badge bg-{{ 'success' if app.status == 'active' else 'secondary' }}"
+									>
+										<i
+											class="fas fa-{{ 'check-circle' if app.status == 'active' else 'pause-circle' }} me-1"
+										></i>
+										{{ app.status|title }}
+									</span>
+								</td>
+								<td>
+									{% if app.last_log_timestamp %}
+									<div class="d-flex flex-column">
+										<span
+											>{{ app.last_log_timestamp.strftime('%Y-%m-%d %H:%M:%S')
+											}}</span
+										>
+										<small class="text-muted">
+											{{ (app.last_log_timestamp - datetime.now()).days }} days
+											ago
+										</small>
+									</div>
+									{% else %}
+									<span class="text-muted">
+										<i class="fas fa-minus me-1"></i>Never
+									</span>
+									{% endif %}
+								</td>
+								<td>
+									<span class="badge bg-primary fs-6"
+										>{{ app.total_logs }}</span
+									>
+								</td>
+								<td>
+									<span class="text-muted"
+										>{{ app.created_at.strftime('%Y-%m-%d') }}</span
+									>
+								</td>
+								<td>
+									<span class="text-muted"
+										>{{ app.updated_at.strftime('%Y-%m-%d %H:%M') }}</span
+									>
+								</td>
+								<td>
+									<div class="btn-group" role="group">
+										<a
+											href="{{ url_for('logs', app_name=app.app_name) }}"
+											class="btn btn-sm btn-outline-primary"
+										>
+											<i class="fas fa-eye"></i> Logs
+										</a>
+										<button
+											class="btn btn-sm btn-outline-info"
+											onclick="showAppStats('{{ app.app_name }}')"
+										>
+											<i class="fas fa-chart-bar"></i> Stats
+										</button>
+									</div>
+								</td>
+							</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+				{% else %}
+				<div class="text-center py-5">
+					<i class="fas fa-server fa-3x text-muted mb-3"></i>
+					<h5 class="text-muted">No Applications Found</h5>
+					<p class="text-muted">No applications are being monitored yet.</p>
+					<a href="{{ url_for('index') }}" class="btn btn-primary">
+						<i class="fas fa-tachometer-alt me-1"></i>Go to Dashboard
+					</a>
+				</div>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Application Statistics Modal -->
+<div class="modal fade" id="appStatsModal" tabindex="-1">
+	<div class="modal-dialog modal-lg">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">
+					<i class="fas fa-chart-bar me-2"></i>Application Statistics
+				</h5>
+				<button
+					type="button"
+					class="btn-close"
+					data-bs-dismiss="modal"
+				></button>
+			</div>
+			<div class="modal-body">
+				<div id="appStatsContent">
+					<div class="text-center py-4">
+						<div class="spinner-border" role="status">
+							<span class="visually-hidden">Loading...</span>
+						</div>
+						<p class="mt-2">Loading statistics...</p>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+					Close
+				</button>
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+	function showAppStats(appName) {
+		const modal = new bootstrap.Modal(document.getElementById("appStatsModal"));
+		modal.show();
+
+		// Load app statistics
+		fetch(`{{ url_for('api_logs') }}?app_name=${appName}&limit=100`)
+			.then((response) => response.json())
+			.then((data) => {
+				if (data.error) {
+					document.getElementById(
+						"appStatsContent"
+					).innerHTML = `<div class="alert alert-danger">Error loading statistics: ${data.error}</div>`;
+					return;
+				}
+
+				// Calculate statistics
+				const totalLogs = data.length;
+				const logsByType = {};
+				const logsByDate = {};
+
+				data.forEach((log) => {
+					// Count by type
+					logsByType[log.log_type] = (logsByType[log.log_type] || 0) + 1;
+
+					// Count by date
+					const date = log.timestamp.split(" ")[0];
+					logsByDate[date] = (logsByDate[date] || 0) + 1;
+				});
+
+				// Create statistics HTML
+				const statsHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Log Types (Last 100 entries)</h6>
+                        <canvas id="appLogsByTypeChart" height="200"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Daily Distribution</h6>
+                        <canvas id="appLogsByDateChart" height="200"></canvas>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6>Summary</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card bg-primary text-white text-center">
+                                    <div class="card-body">
+                                        <h4>${totalLogs}</h4>
+                                        <p class="mb-0">Total Logs</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-danger text-white text-center">
+                                    <div class="card-body">
+                                        <h4>${logsByType.error || 0}</h4>
+                                        <p class="mb-0">Errors</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-success text-white text-center">
+                                    <div class="card-body">
+                                        <h4>${logsByType.info || 0}</h4>
+                                        <p class="mb-0">Info</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-warning text-white text-center">
+                                    <div class="card-body">
+                                        <h4>${logsByType.warn || 0}</h4>
+                                        <p class="mb-0">Warnings</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+				document.getElementById("appStatsContent").innerHTML = statsHtml;
+
+				// Create charts
+				setTimeout(() => {
+					// Logs by type chart
+					const logsByTypeCtx = document
+						.getElementById("appLogsByTypeChart")
+						.getContext("2d");
+					new Chart(logsByTypeCtx, {
+						type: "doughnut",
+						data: {
+							labels: Object.keys(logsByType),
+							datasets: [
+								{
+									data: Object.values(logsByType),
+									backgroundColor: [
+										"#dc3545",
+										"#28a745",
+										"#ffc107",
+										"#17a2b8",
+										"#6c757d",
+									],
+								},
+							],
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+						},
+					});
+
+					// Logs by date chart
+					const logsByDateCtx = document
+						.getElementById("appLogsByDateChart")
+						.getContext("2d");
+					const sortedDates = Object.keys(logsByDate).sort();
+					new Chart(logsByDateCtx, {
+						type: "bar",
+						data: {
+							labels: sortedDates,
+							datasets: [
+								{
+									label: "Log Count",
+									data: sortedDates.map((date) => logsByDate[date]),
+									backgroundColor: "#007bff",
+								},
+							],
+						},
+						options: {
+							responsive: true,
+							maintainAspectRatio: false,
+							scales: {
+								y: {
+									beginAtZero: true,
+								},
+							},
+						},
+					});
+				}, 100);
+			})
+			.catch((error) => {
+				document.getElementById(
+					"appStatsContent"
+				).innerHTML = `<div class="alert alert-danger">Error loading statistics: ${error.message}</div>`;
+			});
+	}
+</script>
+{% endblock %}

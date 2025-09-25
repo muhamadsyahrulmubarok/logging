@@ -1,0 +1,171 @@
+{% extends "base.html" %} {% block title %}Log Detail #{{ log.id }} - Log
+Monitor{% endblock %} {% block content %}
+<div class="row">
+	<div class="col-12">
+		<nav aria-label="breadcrumb">
+			<ol class="breadcrumb">
+				<li class="breadcrumb-item">
+					<a href="{{ url_for('index') }}">Dashboard</a>
+				</li>
+				<li class="breadcrumb-item">
+					<a href="{{ url_for('logs') }}">Logs</a>
+				</li>
+				<li class="breadcrumb-item active">Log #{{ log.id }}</li>
+			</ol>
+		</nav>
+	</div>
+</div>
+
+<div class="row">
+	<div class="col-12">
+		<h1 class="mb-4">
+			<i class="fas fa-file-alt me-2"></i>Log Entry #{{ log.id }}
+		</h1>
+	</div>
+</div>
+
+<!-- Log Information -->
+<div class="row mb-4">
+	<div class="col-12">
+		<div class="card">
+			<div class="card-header">
+				<h5 class="card-title mb-0">
+					<i class="fas fa-info-circle me-2"></i>Log Information
+				</h5>
+			</div>
+			<div class="card-body">
+				<div class="row">
+					<div class="col-md-6">
+						<table class="table table-borderless">
+							<tr>
+								<td><strong>Application:</strong></td>
+								<td>
+									<span class="badge bg-info">{{ log.app_name }}</span>
+								</td>
+							</tr>
+							<tr>
+								<td><strong>Log Type:</strong></td>
+								<td>
+									<span
+										class="badge bg-{{ 'danger' if log.log_type == 'error' else 'success' if log.log_type == 'info' else 'warning' if log.log_type == 'warn' else 'primary' if log.log_type == 'debug' else 'secondary' }}"
+									>
+										{{ log.log_type }}
+									</span>
+								</td>
+							</tr>
+							<tr>
+								<td><strong>Timestamp:</strong></td>
+								<td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+							</tr>
+							<tr>
+								<td><strong>File Name:</strong></td>
+								<td><code>{{ log.file_name }}</code></td>
+							</tr>
+						</table>
+					</div>
+					<div class="col-md-6">
+						<table class="table table-borderless">
+							<tr>
+								<td><strong>File Size:</strong></td>
+								<td>{{ "%.2f"|format(log.file_size / 1024) }} KB</td>
+							</tr>
+							<tr>
+								<td><strong>File Hash:</strong></td>
+								<td><code class="small">{{ log.file_hash }}</code></td>
+							</tr>
+							<tr>
+								<td><strong>Processed At:</strong></td>
+								<td>{{ log.processed_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+							</tr>
+							<tr>
+								<td><strong>Log ID:</strong></td>
+								<td><span class="badge bg-secondary">#{{ log.id }}</span></td>
+							</tr>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Log Content -->
+<div class="row">
+	<div class="col-12">
+		<div class="card">
+			<div class="card-header">
+				<h5 class="card-title mb-0">
+					<i class="fas fa-file-text me-2"></i>Log Content
+				</h5>
+			</div>
+			<div class="card-body">
+				{% if log.log_content %} {% if log.log_content.startswith('[File too
+				large:') %}
+				<div class="alert alert-warning">
+					<i class="fas fa-exclamation-triangle me-2"></i>
+					{{ log.log_content }}
+				</div>
+				{% else %}
+				<pre class="log-content"><code>{{ log.log_content }}</code></pre>
+				{% endif %} {% else %}
+				<div class="text-center py-4">
+					<i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+					<p class="text-muted">No log content available.</p>
+				</div>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Actions -->
+<div class="row mt-4">
+	<div class="col-12">
+		<div class="d-flex gap-2">
+			<a
+				href="{{ url_for('logs', app_name=log.app_name) }}"
+				class="btn btn-outline-primary"
+			>
+				<i class="fas fa-list me-1"></i>View All Logs for {{ log.app_name }}
+			</a>
+			<a
+				href="{{ url_for('logs', log_type=log.log_type) }}"
+				class="btn btn-outline-secondary"
+			>
+				<i class="fas fa-filter me-1"></i>View All {{ log.log_type|title }} Logs
+			</a>
+			<button class="btn btn-outline-success" onclick="copyLogContent()">
+				<i class="fas fa-copy me-1"></i>Copy Content
+			</button>
+		</div>
+	</div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+	function copyLogContent() {
+		const logContent = document.querySelector(".log-content code");
+		if (logContent) {
+			navigator.clipboard
+				.writeText(logContent.textContent)
+				.then(function () {
+					// Show success message
+					const btn = event.target.closest("button");
+					const originalText = btn.innerHTML;
+					btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+					btn.classList.remove("btn-outline-success");
+					btn.classList.add("btn-success");
+
+					setTimeout(function () {
+						btn.innerHTML = originalText;
+						btn.classList.remove("btn-success");
+						btn.classList.add("btn-outline-success");
+					}, 2000);
+				})
+				.catch(function (err) {
+					console.error("Could not copy text: ", err);
+					alert("Failed to copy content to clipboard");
+				});
+		}
+	}
+</script>
+{% endblock %}
