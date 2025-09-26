@@ -426,7 +426,19 @@ db_manager = WebDatabaseManager(config['database'])
 # Make SITE_URL, full_url_for, and datetime available in all templates
 @app.context_processor
 def inject_site_url():
-    return dict(site_url=SITE_URL, full_url_for=full_url_for, datetime=datetime, current_user=current_user)
+    # Safely get current_user, return AnonymousUserMixin if not available
+    try:
+        user = current_user
+    except:
+        from flask_login import AnonymousUserMixin
+        user = AnonymousUserMixin()
+    
+    return dict(
+        site_url=SITE_URL, 
+        full_url_for=full_url_for, 
+        datetime=datetime, 
+        current_user=user
+    )
 
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
@@ -561,15 +573,27 @@ def profile():
     
     return render_template('profile.html')
 
+# Global error handler
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle internal server errors"""
+    logging.error(f"Internal server error: {error}")
+    return render_template('error.html', error="An internal server error occurred. Please try again later.")
+
+@app.errorhandler(404)
+def not_found_error(error):
+    """Handle 404 errors"""
+    return render_template('error.html', error="The requested page was not found.")
+
 @app.route('/')
 @login_required
 def index():
     """Main dashboard"""
-    if not db_manager.connect():
-        return render_template('error.html', 
-                              error="Database connection failed. Please check your configuration.")
-    
     try:
+        if not db_manager.connect():
+            return render_template('error.html', 
+                                  error="Database connection failed. Please check your configuration.")
+        
         apps = db_manager.get_apps_overview()
         recent_logs = db_manager.get_recent_logs(limit=20)
         stats = db_manager.get_log_stats(days=7)
@@ -579,6 +603,7 @@ def index():
                              recent_logs=recent_logs, 
                              stats=stats)
     except Exception as e:
+        logging.error(f"Error in index route: {e}")
         return render_template('error.html', error=str(e))
 
 @app.route('/logs')
