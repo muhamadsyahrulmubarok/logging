@@ -949,7 +949,15 @@ class User(UserMixin):
         self.id = id
         self.username = username
         self.email = email
-        self.is_active = is_active
+        self._is_active = is_active
+    
+    @property
+    def is_active(self):
+        return self._is_active
+    
+    @is_active.setter
+    def is_active(self, value):
+        self._is_active = value
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1171,6 +1179,7 @@ def profile():
                 # Update current user object
                 current_user.username = username
                 current_user.email = email
+                # Note: is_active is handled by the property setter
             else:
                 flash('Failed to update profile. Username may already be taken.', 'error')
         
