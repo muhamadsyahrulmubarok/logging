@@ -526,6 +526,135 @@ class DatabaseManager:
             return False
         finally:
             cursor.close()
+    
+    def get_all_users(self) -> List[Dict]:
+        """Get all users for management"""
+        cursor = self.connection.cursor(dictionary=True)
+        
+        try:
+            query = """
+            SELECT id, username, email, is_active, created_at, updated_at, last_login
+            FROM users 
+            ORDER BY created_at DESC
+            """
+            cursor.execute(query)
+            return cursor.fetchall()
+        except Error as e:
+            logging.error(f"Error fetching all users: {e}")
+            return []
+        finally:
+            cursor.close()
+    
+    def get_user_by_id(self, user_id: int) -> Optional[Dict]:
+        """Get user by ID"""
+        cursor = self.connection.cursor(dictionary=True)
+        
+        try:
+            query = """
+            SELECT id, username, email, is_active, created_at, updated_at, last_login
+            FROM users 
+            WHERE id = %s
+            """
+            cursor.execute(query, (user_id,))
+            return cursor.fetchone()
+        except Error as e:
+            logging.error(f"Error fetching user by ID: {e}")
+            return None
+        finally:
+            cursor.close()
+    
+    def create_user_admin(self, username: str, password: str, email: str = None, is_active: bool = True) -> bool:
+        """Create a new user (admin function)"""
+        cursor = self.connection.cursor()
+        
+        try:
+            password_hash = generate_password_hash(password)
+            query = """
+            INSERT INTO users (username, password_hash, email, is_active)
+            VALUES (%s, %s, %s, %s)
+            """
+            cursor.execute(query, (username, password_hash, email, is_active))
+            self.connection.commit()
+            return True
+        except Error as e:
+            logging.error(f"Error creating user: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def update_user_admin(self, user_id: int, username: str = None, email: str = None, is_active: bool = None) -> bool:
+        """Update user (admin function)"""
+        cursor = self.connection.cursor()
+        
+        try:
+            updates = []
+            params = []
+            
+            if username is not None:
+                updates.append("username = %s")
+                params.append(username)
+            
+            if email is not None:
+                updates.append("email = %s")
+                params.append(email)
+            
+            if is_active is not None:
+                updates.append("is_active = %s")
+                params.append(is_active)
+            
+            if not updates:
+                return True
+            
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(user_id)
+            
+            query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s"
+            cursor.execute(query, params)
+            self.connection.commit()
+            return cursor.rowcount > 0
+            
+        except Error as e:
+            logging.error(f"Error updating user: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def change_user_password_admin(self, user_id: int, new_password: str) -> bool:
+        """Change user password (admin function)"""
+        cursor = self.connection.cursor()
+        
+        try:
+            new_password_hash = generate_password_hash(new_password)
+            query = "UPDATE users SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
+            cursor.execute(query, (new_password_hash, user_id))
+            self.connection.commit()
+            return cursor.rowcount > 0
+            
+        except Error as e:
+            logging.error(f"Error changing user password: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def delete_user(self, user_id: int) -> bool:
+        """Delete a user"""
+        cursor = self.connection.cursor()
+        
+        try:
+            query = "DELETE FROM users WHERE id = %s"
+            cursor.execute(query, (user_id,))
+            self.connection.commit()
+            return cursor.rowcount > 0
+            
+        except Error as e:
+            logging.error(f"Error deleting user: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
 
 # ============================================================================
 # LOG PARSING AND PROCESSING
@@ -1150,6 +1279,153 @@ def profile():
                 flash('Failed to change password. Current password may be incorrect.', 'error')
     
     return render_template('profile.html')
+
+@app.route('/users')
+@login_required
+def users():
+    """User management page"""
+    from flask_login import current_user
+    
+    if not db_manager.connect():
+        flash('Database connection failed. Please try again later.', 'error')
+        return render_template('error.html', error="Database connection failed.")
+    
+    try:
+        users_list = db_manager.get_all_users()
+        return render_template('users.html', users=users_list)
+    except Exception as e:
+        logging.error(f"Error in users route: {e}")
+        return render_template('error.html', error=str(e))
+
+@app.route('/users/create', methods=['GET', 'POST'])
+@login_required
+def create_user():
+    """Create new user"""
+    from flask_login import current_user
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        email = request.form.get('email')
+        is_active = request.form.get('is_active') == 'on'
+        
+        if not username or not password:
+            flash('Username and password are required.', 'error')
+            return render_template('user_form.html', action='create')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('user_form.html', action='create')
+        
+        if not db_manager.connect():
+            flash('Database connection failed. Please try again later.', 'error')
+            return render_template('user_form.html', action='create')
+        
+        if db_manager.create_user_admin(username, password, email, is_active):
+            flash(f'User "{username}" created successfully!', 'success')
+            return redirect(full_url_for('users'))
+        else:
+            flash('Failed to create user. Username may already exist.', 'error')
+    
+    return render_template('user_form.html', action='create')
+
+@app.route('/users/edit/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+def edit_user(user_id):
+    """Edit user"""
+    from flask_login import current_user
+    
+    if not db_manager.connect():
+        flash('Database connection failed. Please try again later.', 'error')
+        return render_template('error.html', error="Database connection failed.")
+    
+    user = db_manager.get_user_by_id(user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(full_url_for('users'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        is_active = request.form.get('is_active') == 'on'
+        
+        if not username:
+            flash('Username is required.', 'error')
+            return render_template('user_form.html', action='edit', user=user)
+        
+        if db_manager.update_user_admin(user_id, username, email, is_active):
+            flash(f'User "{username}" updated successfully!', 'success')
+            return redirect(full_url_for('users'))
+        else:
+            flash('Failed to update user. Username may already be taken.', 'error')
+    
+    return render_template('user_form.html', action='edit', user=user)
+
+@app.route('/users/change-password/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+def change_user_password(user_id):
+    """Change user password"""
+    from flask_login import current_user
+    
+    if not db_manager.connect():
+        flash('Database connection failed. Please try again later.', 'error')
+        return render_template('error.html', error="Database connection failed.")
+    
+    user = db_manager.get_user_by_id(user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(full_url_for('users'))
+    
+    if request.method == 'POST':
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not new_password:
+            flash('New password is required.', 'error')
+            return render_template('change_password.html', user=user)
+        
+        if new_password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('change_password.html', user=user)
+        
+        if len(new_password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('change_password.html', user=user)
+        
+        if db_manager.change_user_password_admin(user_id, new_password):
+            flash(f'Password for "{user["username"]}" changed successfully!', 'success')
+            return redirect(full_url_for('users'))
+        else:
+            flash('Failed to change password.', 'error')
+    
+    return render_template('change_password.html', user=user)
+
+@app.route('/users/delete/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    """Delete user"""
+    from flask_login import current_user
+    
+    # Prevent deleting own account
+    if user_id == current_user.id:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(full_url_for('users'))
+    
+    if not db_manager.connect():
+        flash('Database connection failed. Please try again later.', 'error')
+        return redirect(full_url_for('users'))
+    
+    user = db_manager.get_user_by_id(user_id)
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(full_url_for('users'))
+    
+    if db_manager.delete_user(user_id):
+        flash(f'User "{user["username"]}" deleted successfully!', 'success')
+    else:
+        flash('Failed to delete user.', 'error')
+    
+    return redirect(full_url_for('users'))
 
 # Global error handler
 @app.errorhandler(500)
