@@ -51,6 +51,43 @@
 						</li>
 					</ul>
 					<ul class="navbar-nav">
+						{% if current_user.is_authenticated %}
+						<li class="nav-item dropdown">
+							<a
+								class="nav-link dropdown-toggle"
+								href="#"
+								id="navbarDropdown"
+								role="button"
+								data-bs-toggle="dropdown"
+							>
+								<i class="fas fa-user me-1"></i>{{ current_user.username }}
+							</a>
+							<ul class="dropdown-menu">
+								<li>
+									<a class="dropdown-item" href="{{ url_for('profile') }}">
+										<i class="fas fa-user-cog me-1"></i>Profile Settings
+									</a>
+								</li>
+								<li><hr class="dropdown-divider" /></li>
+								<li>
+									<a class="dropdown-item" href="{{ url_for('logout') }}">
+										<i class="fas fa-sign-out-alt me-1"></i>Logout
+									</a>
+								</li>
+							</ul>
+						</li>
+						{% else %}
+						<li class="nav-item">
+							<a class="nav-link" href="{{ url_for('login') }}">
+								<i class="fas fa-sign-in-alt me-1"></i>Login
+							</a>
+						</li>
+						<li class="nav-item">
+							<a class="nav-link" href="{{ url_for('register') }}">
+								<i class="fas fa-user-plus me-1"></i>Register
+							</a>
+						</li>
+						{% endif %}
 						<li class="nav-item">
 							<span class="navbar-text">
 								<i class="fas fa-clock me-1"></i>

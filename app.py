@@ -4,7 +4,8 @@ Log Monitor Web UI
 Flask-based web interface for the log monitoring application
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import mysql.connector
 from mysql.connector import Error
 import json
@@ -12,8 +13,50 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import logging
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this-in-production')
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+
+# User class for Flask-Login
+class User(UserMixin):
+    def __init__(self, id, username, email, is_active=True):
+        self.id = id
+        self.username = username
+        self.email = email
+        self.is_active = is_active
+
+@login_manager.user_loader
+def load_user(user_id):
+    """Load user from database"""
+    if not db_manager.connect():
+        return None
+    
+    cursor = db_manager.connection.cursor(dictionary=True)
+    try:
+        query = "SELECT id, username, email, is_active FROM users WHERE id = %s"
+        cursor.execute(query, (user_id,))
+        user_data = cursor.fetchone()
+        
+        if user_data:
+            return User(
+                id=user_data['id'],
+                username=user_data['username'],
+                email=user_data['email'],
+                is_active=user_data['is_active']
+            )
+    except Error as e:
+        logging.error(f"Error loading user: {e}")
+    finally:
+        cursor.close()
+    
+    return None
 
 # Load SITE_URL from environment or config
 def get_site_url():
@@ -238,6 +281,119 @@ class WebDatabaseManager:
             return []
         finally:
             cursor.close()
+    
+    def authenticate_user(self, username: str, password: str) -> Optional[Dict]:
+        """Authenticate user with username and password"""
+        cursor = self.connection.cursor(dictionary=True)
+        
+        try:
+            query = """
+            SELECT id, username, password_hash, email, is_active 
+            FROM users 
+            WHERE username = %s AND is_active = TRUE
+            """
+            cursor.execute(query, (username,))
+            user_data = cursor.fetchone()
+            
+            if user_data and check_password_hash(user_data['password_hash'], password):
+                # Update last login
+                update_query = "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s"
+                cursor.execute(update_query, (user_data['id'],))
+                self.connection.commit()
+                
+                return {
+                    'id': user_data['id'],
+                    'username': user_data['username'],
+                    'email': user_data['email'],
+                    'is_active': user_data['is_active']
+                }
+        except Error as e:
+            logging.error(f"Error authenticating user: {e}")
+        finally:
+            cursor.close()
+        
+        return None
+    
+    def create_user(self, username: str, password: str, email: str = None) -> bool:
+        """Create a new user"""
+        cursor = self.connection.cursor()
+        
+        try:
+            password_hash = generate_password_hash(password)
+            query = """
+            INSERT INTO users (username, password_hash, email, is_active)
+            VALUES (%s, %s, %s, TRUE)
+            """
+            cursor.execute(query, (username, password_hash, email))
+            self.connection.commit()
+            return True
+        except Error as e:
+            logging.error(f"Error creating user: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def update_user_profile(self, user_id: int, username: str = None, email: str = None) -> bool:
+        """Update user profile information"""
+        cursor = self.connection.cursor()
+        
+        try:
+            updates = []
+            params = []
+            
+            if username is not None:
+                updates.append("username = %s")
+                params.append(username)
+            
+            if email is not None:
+                updates.append("email = %s")
+                params.append(email)
+            
+            if not updates:
+                return True
+            
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(user_id)
+            
+            query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s"
+            cursor.execute(query, params)
+            self.connection.commit()
+            return cursor.rowcount > 0
+            
+        except Error as e:
+            logging.error(f"Error updating user profile: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def change_user_password(self, user_id: int, current_password: str, new_password: str) -> bool:
+        """Change user password"""
+        cursor = self.connection.cursor(dictionary=True)
+        
+        try:
+            # First verify current password
+            query = "SELECT password_hash FROM users WHERE id = %s"
+            cursor.execute(query, (user_id,))
+            user_data = cursor.fetchone()
+            
+            if not user_data or not check_password_hash(user_data['password_hash'], current_password):
+                return False
+            
+            # Update password
+            new_password_hash = generate_password_hash(new_password)
+            update_query = "UPDATE users SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
+            cursor.execute(update_query, (new_password_hash, user_id))
+            self.connection.commit()
+            return cursor.rowcount > 0
+            
+        except Error as e:
+            logging.error(f"Error changing password: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
 
 # Load configuration
 def load_config():
@@ -270,9 +426,143 @@ db_manager = WebDatabaseManager(config['database'])
 # Make SITE_URL, full_url_for, and datetime available in all templates
 @app.context_processor
 def inject_site_url():
-    return dict(site_url=SITE_URL, full_url_for=full_url_for, datetime=datetime)
+    return dict(site_url=SITE_URL, full_url_for=full_url_for, datetime=datetime, current_user=current_user)
+
+# Authentication routes
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login page"""
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            flash('Please enter both username and password.', 'error')
+            return render_template('login.html')
+        
+        if not db_manager.connect():
+            flash('Database connection failed. Please try again later.', 'error')
+            return render_template('login.html')
+        
+        user_data = db_manager.authenticate_user(username, password)
+        
+        if user_data:
+            user = User(
+                id=user_data['id'],
+                username=user_data['username'],
+                email=user_data['email'],
+                is_active=user_data['is_active']
+            )
+            login_user(user)
+            flash(f'Welcome back, {user.username}!', 'success')
+            
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
+        else:
+            flash('Invalid username or password.', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    """Logout user"""
+    logout_user()
+    flash('You have been logged out successfully.', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """User registration page"""
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        email = request.form.get('email')
+        
+        if not username or not password:
+            flash('Username and password are required.', 'error')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('register.html')
+        
+        if not db_manager.connect():
+            flash('Database connection failed. Please try again later.', 'error')
+            return render_template('register.html')
+        
+        if db_manager.create_user(username, password, email):
+            flash('Registration successful! Please log in.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Registration failed. Username may already exist.', 'error')
+    
+    return render_template('register.html')
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    """User profile/settings page"""
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if not db_manager.connect():
+            flash('Database connection failed. Please try again later.', 'error')
+            return render_template('profile.html')
+        
+        if action == 'update_profile':
+            username = request.form.get('username')
+            email = request.form.get('email')
+            
+            if not username:
+                flash('Username is required.', 'error')
+                return render_template('profile.html')
+            
+            if db_manager.update_user_profile(current_user.id, username, email):
+                flash('Profile updated successfully!', 'success')
+                # Update current user object
+                current_user.username = username
+                current_user.email = email
+            else:
+                flash('Failed to update profile. Username may already be taken.', 'error')
+        
+        elif action == 'change_password':
+            current_password = request.form.get('current_password')
+            new_password = request.form.get('new_password')
+            confirm_password = request.form.get('confirm_password')
+            
+            if not current_password or not new_password:
+                flash('All password fields are required.', 'error')
+                return render_template('profile.html')
+            
+            if new_password != confirm_password:
+                flash('New passwords do not match.', 'error')
+                return render_template('profile.html')
+            
+            if len(new_password) < 6:
+                flash('New password must be at least 6 characters long.', 'error')
+                return render_template('profile.html')
+            
+            if db_manager.change_user_password(current_user.id, current_password, new_password):
+                flash('Password changed successfully!', 'success')
+            else:
+                flash('Failed to change password. Current password may be incorrect.', 'error')
+    
+    return render_template('profile.html')
 
 @app.route('/')
+@login_required
 def index():
     """Main dashboard"""
     if not db_manager.connect():
@@ -292,6 +582,7 @@ def index():
         return render_template('error.html', error=str(e))
 
 @app.route('/logs')
+@login_required
 def logs():
     """Logs listing page"""
     if not db_manager.connect():
@@ -327,6 +618,7 @@ def logs():
         return render_template('error.html', error=str(e))
 
 @app.route('/log/<int:log_id>')
+@login_required
 def log_detail(log_id):
     """Log detail page"""
     if not db_manager.connect():
@@ -343,6 +635,7 @@ def log_detail(log_id):
         return render_template('error.html', error=str(e))
 
 @app.route('/apps')
+@login_required
 def apps():
     """Applications overview page"""
     if not db_manager.connect():
@@ -356,6 +649,7 @@ def apps():
         return render_template('error.html', error=str(e))
 
 @app.route('/api/stats')
+@login_required
 def api_stats():
     """API endpoint for statistics"""
     if not db_manager.connect():
@@ -369,6 +663,7 @@ def api_stats():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/logs')
+@login_required
 def api_logs():
     """API endpoint for logs"""
     if not db_manager.connect():
