@@ -5,7 +5,7 @@ Flask-based web interface for the log monitoring application
 """
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 import mysql.connector
 from mysql.connector import Error
 import json
@@ -426,11 +426,15 @@ db_manager = WebDatabaseManager(config['database'])
 # Make SITE_URL, full_url_for, and datetime available in all templates
 @app.context_processor
 def inject_site_url():
+    from flask_login import current_user, AnonymousUserMixin
+    
     # Safely get current_user, return AnonymousUserMixin if not available
     try:
         user = current_user
+        # Ensure user has is_authenticated attribute
+        if not hasattr(user, 'is_authenticated'):
+            user = AnonymousUserMixin()
     except:
-        from flask_login import AnonymousUserMixin
         user = AnonymousUserMixin()
     
     return dict(
