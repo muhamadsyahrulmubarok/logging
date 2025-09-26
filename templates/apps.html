@@ -160,7 +160,11 @@
 		modal.show();
 
 		// Load app statistics
-		fetch(`{{ url_for('api_logs') }}?app_name=${appName}&limit=100`)
+		fetch(
+			`${
+				window.SITE_URL || ""
+			}{{ url_for('api_logs') }}?app_name=${appName}&limit=100`
+		)
 			.then((response) => response.json())
 			.then((data) => {
 				if (data.error) {

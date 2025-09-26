@@ -41,6 +41,9 @@ LOG_LEVEL=INFO
 LOG_FILE=./logs/log_monitor.log
 LOG_MAX_BYTES=10485760
 LOG_BACKUP_COUNT=5
+
+# Site Configuration
+SITE_URL=
 """
     
     with open('.env', 'w') as f:

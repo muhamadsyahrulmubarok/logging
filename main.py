@@ -24,6 +24,21 @@ import threading
 import queue
 from dotenv import load_dotenv
 
+# Load SITE_URL from environment or config
+def get_site_url():
+    """Get SITE_URL from environment or config file"""
+    site_url = os.getenv('SITE_URL', '').rstrip('/')
+    if not site_url and os.path.exists('config.json'):
+        try:
+            with open('config.json', 'r') as f:
+                config = json.load(f)
+                site_url = config.get('site_url', '').rstrip('/')
+        except Exception:
+            pass
+    return site_url
+
+SITE_URL = get_site_url()
+
 class DatabaseManager:
     """Manages MySQL database operations for log storage"""
     

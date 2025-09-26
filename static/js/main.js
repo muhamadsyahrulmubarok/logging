@@ -1,5 +1,8 @@
 // Log Monitor Web UI - Main JavaScript
 
+// Get base URL from global variable or use current origin
+const BASE_URL = window.SITE_URL || window.location.origin;
+
 document.addEventListener("DOMContentLoaded", function () {
 	// Initialize current time display
 	updateCurrentTime();
@@ -52,7 +55,7 @@ function initializeAutoRefresh() {
 
 // Refresh dashboard statistics
 function refreshDashboardStats() {
-	fetch("/api/stats?days=7")
+	fetch(`${BASE_URL}/api/stats?days=7`)
 		.then((response) => response.json())
 		.then((data) => {
 			if (data.error) {

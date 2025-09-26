@@ -27,6 +27,21 @@ from dotenv import load_dotenv
 # Flask imports
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 
+# Load SITE_URL from environment or config
+def get_site_url():
+    """Get SITE_URL from environment or config file"""
+    site_url = os.getenv('SITE_URL', '').rstrip('/')
+    if not site_url and os.path.exists('config.json'):
+        try:
+            with open('config.json', 'r') as f:
+                config = json.load(f)
+                site_url = config.get('site_url', '').rstrip('/')
+        except Exception:
+            pass
+    return site_url
+
+SITE_URL = get_site_url()
+
 # ============================================================================
 # DATABASE MANAGEMENT
 # ============================================================================
@@ -796,6 +811,11 @@ class LogMonitor:
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Make SITE_URL available in all templates
+@app.context_processor
+def inject_site_url():
+    return dict(site_url=SITE_URL)
 
 # Global variables for the monitor
 log_monitor = None
