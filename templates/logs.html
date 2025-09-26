@@ -118,7 +118,7 @@
                                     <span class="text-muted">{{ log.processed_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
                                 </td>
                                 <td>
-                                    <a href="{{ url_for('log_detail', log_id=log.id) }}" 
+                                    <a href="{{ full_url_for('log_detail', log_id=log.id) }}" 
                                        class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i> View
                                     </a>
@@ -140,7 +140,7 @@
                         {% endif %}
                     </p>
                     {% if current_app or current_type or current_search %}
-                    <a href="{{ url_for('logs') }}" class="btn btn-outline-primary">
+                    <a href="{{ full_url_for('logs') }}" class="btn btn-outline-primary">
                         <i class="fas fa-times me-1"></i>Clear Filters
                     </a>
                     {% endif %}

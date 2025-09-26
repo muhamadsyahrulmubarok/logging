@@ -42,6 +42,13 @@ def get_site_url():
 
 SITE_URL = get_site_url()
 
+# Custom template function for full URLs
+def full_url_for(endpoint, **values):
+    """Generate full URL with SITE_URL prefix"""
+    if SITE_URL:
+        return f"{SITE_URL}{url_for(endpoint, **values)}"
+    return url_for(endpoint, **values)
+
 # ============================================================================
 # DATABASE MANAGEMENT
 # ============================================================================
@@ -812,10 +819,10 @@ class LogMonitor:
 # Initialize Flask app
 app = Flask(__name__)
 
-# Make SITE_URL available in all templates
+# Make SITE_URL and full_url_for available in all templates
 @app.context_processor
 def inject_site_url():
-    return dict(site_url=SITE_URL)
+    return dict(site_url=SITE_URL, full_url_for=full_url_for)
 
 # Global variables for the monitor
 log_monitor = None

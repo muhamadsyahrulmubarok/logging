@@ -147,7 +147,7 @@
 								<td>{{ app.created_at.strftime('%Y-%m-%d') }}</td>
 								<td>
 									<a
-										href="{{ url_for('logs', app_name=app.app_name) }}"
+										href="{{ full_url_for('logs', app_name=app.app_name) }}"
 										class="btn btn-sm btn-outline-primary"
 									>
 										<i class="fas fa-eye"></i> View Logs
@@ -212,7 +212,7 @@
 								<td>{{ "%.1f"|format(log.file_size / 1024) }} KB</td>
 								<td>
 									<a
-										href="{{ url_for('log_detail', log_id=log.id) }}"
+										href="{{ full_url_for('log_detail', log_id=log.id) }}"
 										class="btn btn-sm btn-outline-primary"
 									>
 										<i class="fas fa-eye"></i> View
@@ -224,7 +224,7 @@
 					</table>
 				</div>
 				<div class="text-center mt-3">
-					<a href="{{ url_for('logs') }}" class="btn btn-primary">
+					<a href="{{ full_url_for('logs') }}" class="btn btn-primary">
 						<i class="fas fa-list me-1"></i>View All Logs
 					</a>
 				</div>

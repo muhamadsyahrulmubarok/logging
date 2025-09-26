@@ -21,7 +21,7 @@
 		<!-- Navigation -->
 		<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
 			<div class="container">
-				<a class="navbar-brand" href="{{ url_for('index') }}">
+				<a class="navbar-brand" href="{{ full_url_for('index') }}">
 					<i class="fas fa-chart-line me-2"></i>Log Monitor
 				</a>
 				<button
@@ -35,17 +35,17 @@
 				<div class="collapse navbar-collapse" id="navbarNav">
 					<ul class="navbar-nav me-auto">
 						<li class="nav-item">
-							<a class="nav-link" href="{{ url_for('index') }}">
+							<a class="nav-link" href="{{ full_url_for('index') }}">
 								<i class="fas fa-tachometer-alt me-1"></i>Dashboard
 							</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="{{ url_for('logs') }}">
+							<a class="nav-link" href="{{ full_url_for('logs') }}">
 								<i class="fas fa-file-alt me-1"></i>Logs
 							</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="{{ url_for('apps') }}">
+							<a class="nav-link" href="{{ full_url_for('apps') }}">
 								<i class="fas fa-server me-1"></i>Applications
 							</a>
 						</li>
