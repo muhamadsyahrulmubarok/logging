@@ -934,6 +934,15 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
 
+# Custom unauthorized handler to use full_url_for
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Handle unauthorized access with proper URL generation"""
+    from flask_login import current_user
+    if not current_user.is_authenticated:
+        return redirect(full_url_for('login'))
+    return redirect(full_url_for('index'))
+
 # User class for Flask-Login
 class User(UserMixin):
     def __init__(self, id, username, email, is_active=True):
@@ -972,7 +981,10 @@ def load_user(user_id):
 def full_url_for(endpoint, **values):
     """Generate full URL with SITE_URL prefix"""
     if SITE_URL:
-        return f"{SITE_URL}{url_for(endpoint, **values)}"
+        # Ensure SITE_URL doesn't have trailing slash and url_for result starts with /
+        site_url = SITE_URL.rstrip('/')
+        url_path = url_for(endpoint, **values)
+        return f"{site_url}{url_path}"
     return url_for(endpoint, **values)
 
 # Make SITE_URL, full_url_for, and datetime available in all templates
@@ -1049,7 +1061,7 @@ def login():
     from flask_login import current_user
     
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(full_url_for('index'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -1076,7 +1088,12 @@ def login():
             flash(f'Welcome back, {user.username}!', 'success')
             
             next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('index'))
+            if next_page:
+                # Handle next page with SITE_URL if it's a relative URL
+                if next_page.startswith('/'):
+                    next_page = f"{SITE_URL.rstrip('/')}{next_page}" if SITE_URL else next_page
+                return redirect(next_page)
+            return redirect(full_url_for('index'))
         else:
             flash('Invalid username or password.', 'error')
     
@@ -1088,7 +1105,7 @@ def logout():
     """Logout user"""
     logout_user()
     flash('You have been logged out successfully.', 'info')
-    return redirect(url_for('login'))
+    return redirect(full_url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -1096,7 +1113,7 @@ def register():
     from flask_login import current_user
     
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(full_url_for('index'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -1122,7 +1139,7 @@ def register():
         
         if db_manager.create_user(username, password, email):
             flash('Registration successful! Please log in.', 'success')
-            return redirect(url_for('login'))
+            return redirect(full_url_for('login'))
         else:
             flash('Registration failed. Username may already exist.', 'error')
     

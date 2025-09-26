@@ -5,10 +5,10 @@ Monitor{% endblock %} {% block content %}
 		<nav aria-label="breadcrumb">
 			<ol class="breadcrumb">
 				<li class="breadcrumb-item">
-					<a href="{{ url_for('index') }}">Dashboard</a>
+					<a href="{{ full_url_for('index') }}">Dashboard</a>
 				</li>
 				<li class="breadcrumb-item">
-					<a href="{{ url_for('logs') }}">Logs</a>
+					<a href="{{ full_url_for('logs') }}">Logs</a>
 				</li>
 				<li class="breadcrumb-item active">Log #{{ log.id }}</li>
 			</ol>
@@ -123,13 +123,13 @@ Monitor{% endblock %} {% block content %}
 	<div class="col-12">
 		<div class="d-flex gap-2">
 			<a
-				href="{{ url_for('logs', app_name=log.app_name) }}"
+				href="{{ full_url_for('logs', app_name=log.app_name) }}"
 				class="btn btn-outline-primary"
 			>
 				<i class="fas fa-list me-1"></i>View All Logs for {{ log.app_name }}
 			</a>
 			<a
-				href="{{ url_for('logs', log_type=log.log_type) }}"
+				href="{{ full_url_for('logs', log_type=log.log_type) }}"
 				class="btn btn-outline-secondary"
 			>
 				<i class="fas fa-filter me-1"></i>View All {{ log.log_type|title }} Logs

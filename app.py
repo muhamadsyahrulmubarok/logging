@@ -77,7 +77,10 @@ SITE_URL = get_site_url()
 def full_url_for(endpoint, **values):
     """Generate full URL with SITE_URL prefix"""
     if SITE_URL:
-        return f"{SITE_URL}{url_for(endpoint, **values)}"
+        # Ensure SITE_URL doesn't have trailing slash and url_for result starts with /
+        site_url = SITE_URL.rstrip('/')
+        url_path = url_for(endpoint, **values)
+        return f"{site_url}{url_path}"
     return url_for(endpoint, **values)
 
 class WebDatabaseManager:
