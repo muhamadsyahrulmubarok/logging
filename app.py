@@ -325,25 +325,6 @@ class WebDatabaseManager:
         
         return None
     
-    def create_user(self, username: str, password: str, email: str = None) -> bool:
-        """Create a new user"""
-        cursor = self.connection.cursor()
-        
-        try:
-            password_hash = generate_password_hash(password)
-            query = """
-            INSERT INTO users (username, password_hash, email, is_active)
-            VALUES (%s, %s, %s, TRUE)
-            """
-            cursor.execute(query, (username, password_hash, email))
-            self.connection.commit()
-            return True
-        except Error as e:
-            logging.error(f"Error creating user: {e}")
-            self.connection.rollback()
-            return False
-        finally:
-            cursor.close()
     
     def update_user_profile(self, user_id: int, username: str = None, email: str = None) -> bool:
         """Update user profile information"""
@@ -501,41 +482,6 @@ def logout():
     flash('You have been logged out successfully.', 'info')
     return redirect(url_for('login'))
 
-# @app.route('/register', methods=['GET', 'POST'])
-# def register():
-#     """User registration page"""
-#     if current_user.is_authenticated:
-#         return redirect(url_for('index'))
-    
-#     if request.method == 'POST':
-#         username = request.form.get('username')
-#         password = request.form.get('password')
-#         confirm_password = request.form.get('confirm_password')
-#         email = request.form.get('email')
-        
-#         if not username or not password:
-#             flash('Username and password are required.', 'error')
-#             return render_template('register.html')
-        
-#         if password != confirm_password:
-#             flash('Passwords do not match.', 'error')
-#             return render_template('register.html')
-        
-#         if len(password) < 6:
-#             flash('Password must be at least 6 characters long.', 'error')
-#             return render_template('register.html')
-        
-#         if not db_manager.connect():
-#             flash('Database connection failed. Please try again later.', 'error')
-#             return render_template('register.html')
-        
-#         if db_manager.create_user(username, password, email):
-#             flash('Registration successful! Please log in.', 'success')
-#             return redirect(url_for('login'))
-#         else:
-#             flash('Registration failed. Username may already exist.', 'error')
-    
-#     return render_template('register.html')
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
