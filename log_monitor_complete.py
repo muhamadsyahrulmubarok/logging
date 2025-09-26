@@ -819,10 +819,10 @@ def full_url_for(endpoint, **values):
         return f"{SITE_URL}{url_for(endpoint, **values)}"
     return url_for(endpoint, **values)
 
-# Make SITE_URL and full_url_for available in all templates
+# Make SITE_URL, full_url_for, and datetime available in all templates
 @app.context_processor
 def inject_site_url():
-    return dict(site_url=SITE_URL, full_url_for=full_url_for)
+    return dict(site_url=SITE_URL, full_url_for=full_url_for, datetime=datetime)
 
 # Global variables for the monitor
 log_monitor = None

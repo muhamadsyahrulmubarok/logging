@@ -267,10 +267,10 @@ def load_config():
 config = load_config()
 db_manager = WebDatabaseManager(config['database'])
 
-# Make SITE_URL and full_url_for available in all templates
+# Make SITE_URL, full_url_for, and datetime available in all templates
 @app.context_processor
 def inject_site_url():
-    return dict(site_url=SITE_URL, full_url_for=full_url_for)
+    return dict(site_url=SITE_URL, full_url_for=full_url_for, datetime=datetime)
 
 @app.route('/')
 def index():
